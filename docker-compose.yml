@@ -1,0 +1,16 @@
+services:
+  backend:
+    container_name: sentinellog_intake
+    build:
+      context: ./backend-intake
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend-intake:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

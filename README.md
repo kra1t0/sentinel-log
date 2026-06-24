@@ -18,3 +18,68 @@ Small-to-mid sized startups cannot afford these tools or the massive human headc
 - **High Velocity Non Blocking Ingestion** The endpoint must accept log traffic spikes seamlessly, passing the data off instantly into a queue and responding within milliseconds rather than making the sender wait for a databse query to finish.
 - **Strict Relational Partitioning** Log data must be locked down tight at the database level using strict row level filters or decoupled customer contexts. 
 - **Sub Second Alert Propagation** When a security rule breaks, the alert must instantly pop up on the human adminnistrator's dashboard in less than a second.
+
+## 3 Core Architecure: Compoenent breakdown
+### 3.1 Current directory structure for Phase 1 (Ingestion Gateway Node):
+```
+.
+└── sentinel-log/
+    ├── backend-intake/
+    │   ├── app/
+    │   │   ├── __init__.py
+    │   │   ├── app.py             # Application bootstrap & FastAPI initialization
+    │   │   ├── models/
+    │   │   │   ├── __init__.py
+    │   │   │   └── models.py      # Pydantic data validation layer schema contracts
+    │   │   └── routes/
+    │   │       ├── __init__.py
+    │   │       └── routes.py      # Ingestion routing definitions
+    │   ├── Dockerfile             # Container definitions targeting lean runtimes
+    │   └── requirements.txt       # Hardlocked python microservice dependencies
+    ├── docker-compose.yml         # Containerized local environment orchestrator
+    ├── LICENSE
+    └── README.md
+```
+### 3.2 Ingestion Gateway API Verification
+The isolated intake controller accepts asynchronously queued security telemetry logs directly from decoupled applications or infrastructure components. 
+
+* Ingestion Endpoint: POST http://127.0.0.1:8000/api/v1/telemetry/ingest
+* Transport Header: Content-Type: application/json
+
+Sample Ingest Client Payload Envelope:
+```
+{
+  "tenant_id": "tenant-secops-99",
+  "event_type": "unauthorized_access",
+  "actor_ip": "192.168.1.45",
+  "metadata": {
+    "severity": "CRITICAL",
+    "system_id": "auth-srv-01"
+  },
+  "timestamp": "2026-06-24T22:00:00Z"
+}
+```
+
+Sample Gateway Server Response (202 Accepted):
+```
+{
+  "status": "accepted",
+  "message": "Log signature validated successfully and queued.",
+  "received_at": "2026-06-24T17:21:14.176879Z"
+}
+```
+
+### 3.3 Strict Secure Coding Foundations
+To ensure full defensive security across high-throughput data processing phases, every component integrated into this software repository must adhere to the following strict paradigms:
+
+A. Input Form Invalidation Boundaries
+- Rule: No raw, unvalidated, or unstructured byte frames are permitted deeper inside internal microservice logic.
+- Implementation: Strict payload structures are mapped at the controller boundary using Pydantic typing. Malformed telemetry schemas are blocked instantly at the API gateway layer, auto-rejecting threats or runtime memory panics before hitting background brokers.
+
+B. SQL and Command Injection Countermeasures
+- Rule: Variable payloads such as event descriptions, parameters, and metadata strings must be evaluated as toxic vectors.
+- Implementation: No component throughout this code ecosystem compiles raw dynamic string inputs into execution tracks. Interaction with storage systems or database engines must exclusively utilize explicit parameterized variables and sanitized Object-Relational Mappers (ORMs).
+
+C. Cryptographic Tenant Leak Prevention
+- Rule: A tenant identification key transmitted purely inside a raw client request body payload cannot be single-handedly trusted to map multi-tenant isolation borders.
+- Implementation: As authentication mechanisms expand, client requests will require structured header tokens. The ingestion gateway will evaluate and decode the cryptographic signature, determine the validated operational scope, and programmatically override internal identity fields to guarantee bulletproof workspace segregation.

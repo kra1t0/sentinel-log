@@ -20,25 +20,24 @@ Small-to-mid sized startups cannot afford these tools or the massive human headc
 - **Sub Second Alert Propagation** When a security rule breaks, the alert must instantly pop up on the human adminnistrator's dashboard in less than a second.
 
 ## 3 Core Architecure: Compoenent breakdown
-### 3.1 Current directory structure for Phase 1 (Ingestion Gateway Node):
+### 3.1 Current directory structure for Phase 2 (Ingestion Gateway Node - With Redpanda as a Broker):
 ```
 .
-└── sentinel-log/
-    ├── backend-intake/
-    │   ├── app/
-    │   │   ├── __init__.py
-    │   │   ├── app.py             # Application bootstrap & FastAPI initialization
-    │   │   ├── models/
-    │   │   │   ├── __init__.py
-    │   │   │   └── models.py      # Pydantic data validation layer schema contracts
-    │   │   └── routes/
-    │   │       ├── __init__.py
-    │   │       └── routes.py      # Ingestion routing definitions
-    │   ├── Dockerfile             # Container definitions targeting lean runtimes
-    │   └── requirements.txt       # Hardlocked python microservice dependencies
-    ├── docker-compose.yml         # Containerized local environment orchestrator
-    ├── LICENSE
-    └── README.md
+├── backend-intake
+│   └── app
+│       ├── app.py
+│       ├── __init__.py
+│       ├── models
+│       │   ├── __init__.py
+│       │   └── models.py
+│       └── routes
+│           ├── __init__.py
+│           └── routes.py
+├── docker-compose.yml
+├── Dockerfile
+├── LICENSE
+├── README.md
+└── requirements.txt
 ```
 ### 3.2 Ingestion Gateway API Verification
 The isolated intake controller accepts asynchronously queued security telemetry logs directly from decoupled applications or infrastructure components. 

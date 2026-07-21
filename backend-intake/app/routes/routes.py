@@ -1,6 +1,7 @@
+import json
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 
 from app.models.models import LogIngestPayload
 
@@ -13,17 +14,23 @@ async def health_check():
 
 
 @router.post("/api/v1/telemetry/ingest", status_code=status.HTTP_202_ACCEPTED)
-async def ingest_telemetry(payload: LogIngestPayload):
+async def ingest_telemetry(payload: LogIngestPayload, request: Request):
     try:
-        print(f"\n[RAW TELEMETRY INGESTED]")
-        print(f"Tenant Context: {payload.tenant_id}")
-        print(f"Event Signature: {payload.event_type} | Actor IP: {payload.actor_ip}")
-        print(f"Timestamp: {payload.timestamp}")
+        # retrieve the connection pool from global app state
+        producer = getattr(request.app.state, "producer", None)
+        if not producer:
+            raise HTTPException(status_code=503, detail="Streming engine unavailable")
+
+        # pydantic object to raw JSON bytes
+        serialized_data = json.dumps(payload.model_dump()).encode("utf-8")
+
+        # Fire and Forget technique
+        await producer.send_and_wait("telemetry-raw-logs", serialized_data)
 
         return {
             "status": "accepted",
             "message": "Log signature validated successfully and queued.",
-            "received_at": datetime.utcnow().isoformat() + "Z",
+            "received_at": datetime.now().isoformat().replace("+00:00", "Z"),
         }
 
     except Exception as e:

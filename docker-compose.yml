@@ -1,9 +1,7 @@
 services:
   backend:
     container_name: sentinellog_intake
-    build:
-      context: ./backend-intake
-      dockerfile: Dockerfile
+    build: .
     restart: always
     ports:
       - "127.0.0.1:8000:8000"
@@ -14,3 +12,28 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+    networks:
+      - sentinel-net
+    depends_on:
+      - redpanda
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: sentinel-broker-redpanda
+    hostname: redpanda
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://127.0.0.1:19092
+    ports:
+      - "19092:19092" #just for debugging
+    networks:
+      - sentinel-net
+
+networks:
+  sentinel-net:
+    driver: bridge

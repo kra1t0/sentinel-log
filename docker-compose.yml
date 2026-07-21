@@ -13,11 +13,37 @@ services:
         max-size: "10m"
         max-file: "3"
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=redpanda:9092
+      - KAFKA_BOOTSTRAP_SERVERS_INTERNAL=${KAFKA_BOOTSTRAP_SERVERS_INTERNAL}
     networks:
       - sentinel-net
     depends_on:
-      - redpanda
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+  worker:
+    container_name: sentinellog_worker
+    build: .
+    restart: always
+    command: python app/workers/worker.py
+    volumes:
+      - ./backend-intake:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS_INTERNAL=${KAFKA_BOOTSTRAP_SERVERS_INTERNAL}
+      - KAFKA_BOOTSTRAP_SERVERS_EXTERNAL=${KAFKA_BOOTSTRAP_SERVERS_EXTERNAL}
+      - POSTGRES_DSN=${POSTGRES_DSN}
+    networks:
+      - sentinel-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
 
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
@@ -34,6 +60,30 @@ services:
     networks:
       - sentinel-net
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: sentinel-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - sentinel-net
+
 networks:
   sentinel-net:
     driver: bridge
+
+volumes:
+  postgres_data:

@@ -9,6 +9,9 @@ class LogIngestPayload(BaseModel):
         ...,
         description="Unique organization token used for multi-tenant data isolation boundaries.",
     )
+    event_source: str = Field(
+        ..., description="The source service or application generating the log"
+    )
     event_type: str = Field(
         ...,
         description="The categorized event type signature (e.g., login_failed, unauthorized_access).",

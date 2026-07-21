@@ -15,7 +15,7 @@ from app.routes.routes import router
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # when container boots up
-    broker_url = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+    broker_url = os.getenv("KAFKA_BOOTSTRAP_SERVERS_INTERNAL", "localhost:9092")
     print(f"[SYSTEM INIT] Connecting to streaming engine at {broker_url}")
 
     producer = AIOKafkaProducer(bootstrap_servers=broker_url)

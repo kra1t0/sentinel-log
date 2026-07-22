@@ -1,3 +1,4 @@
+import uuid
 from typing import Any, Dict
 
 from pydantic import BaseModel, Field
@@ -5,6 +6,9 @@ from pydantic import BaseModel, Field
 
 # contains the input data types through the main log ingestion endpoint
 class LogIngestPayload(BaseModel):
+    id: uuid.UUID | None = Field(
+        default=None, description="The unique identifier for the log record"
+    )
     tenant_id: str = Field(
         ...,
         description="Unique organization token used for multi-tenant data isolation boundaries.",

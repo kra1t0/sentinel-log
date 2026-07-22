@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
                 break
             except KafkaConnectionError as kafkaconerr:
                 if attempt == retries:
-                    print(f"f[SYSTEM ERROR] Failed to connect after {retries} of retries")
+                    print(f"[SYSTEM ERROR] Failed to connect after {retries} of retries")
                     raise kafkaconerr
                 print(f"[SYSTEM WARN] Connection failed (Attempt {attempt}/{retries}). Retrying in {delay}s...")
                 await asyncio.sleep(delay)

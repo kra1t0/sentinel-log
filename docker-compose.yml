@@ -83,6 +83,18 @@ services:
     networks:
       - sentinel-net
 
+  redis:
+    image: redis:7-alpine
+    container_name: sentinel-redis
+    restart: always
+    ports:
+      - "127.0.0.1:6379:6379"
+    command: redis-server --save 60 1 --loglevel notice
+    volumes:
+      - redis_data:/data
+    networks:
+      - sentinel-net
+
 networks:
   sentinel-net:
     driver: bridge

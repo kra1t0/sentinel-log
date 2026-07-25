@@ -5,12 +5,15 @@ import os
 import sys
 import uuid
 from datetime import datetime, timezone
+from math import prod
 from shutil import ExecError
 
 import asyncpg
 from aiokafka.consumer import AIOKafkaConsumer, consumer
 from aiokafka.producer.producer import AIOKafkaProducer
 from aiokafka.protocol import produce
+from app.models import rule_engine
+from app.models.rule_engine import DynamicRuleEngine
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,9 +29,12 @@ POSTGRES_DSN = os.getenv(
     "POSTGRES_DSN",
     "postgresql://sentinel:somepass@postgres:5432/sentinel_db",
 )
+REDIS_URL = os.getenv("REDIS_URL", "redis://sentinel-redis:6379/0")
+
 TOPIC_NAME = "telemetry-raw-logs"
 DLQ_TOPIC = "telemetry-dlq"
 CONSUMER_GROUP = "sentinel-postgres-writers"
+ANOMALY_TOPIC = "telemetry-anomalies"
 
 
 async def send_to_dlq(producer: AIOKafkaProducer, raw_value: bytes, error_reason: str):
@@ -109,12 +115,11 @@ async def start_consumer():
 
     # 1. Connect to postgres connection pool
     pool = await asyncpg.create_pool(dsn=POSTGRES_DSN, min_size=2, max_size=10)
-
+    logger.info("Database connection pool established.")
     # Init the worker's personal DLQ producer
     producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP)
     await producer.start()
     logger.info("DLQ Kafka Producer engine started..")
-    logger.info("Database connection pool established.")
 
     # 2. Connect to our panda consumer
     consumer = AIOKafkaConsumer(
@@ -124,6 +129,10 @@ async def start_consumer():
         enable_auto_commit=False,
         auto_offset_reset="earliest",
     )
+
+    rule_engine = DynamicRuleEngine(postgres_dsn=POSTGRES_DSN, redis_url=REDIS_URL)
+    await rule_engine.initialize()  # wait for the initialization
+    asyncio.create_task(rule_engine.listen_for_rule_updates())
 
     await consumer.start()
     logger.info(f"Subscribed to topic '{TOPIC_NAME}'. Waiting for telemetry stream..")
@@ -140,9 +149,26 @@ async def start_consumer():
             for topic_partition, records in batch_data.items():
                 for record in records:
                     try:
-                        parsed_row = sanitize_and_parse(record.value)
+                        parsed_row, dict_payload = sanitize_and_parse(record.value)
                         rows_to_execute.append(parsed_row)
                         records_in_batch.append(record)
+
+                        # check if there are anomalies
+                        anomaly_payload = await rule_engine.evaluate_log(dict_payload)
+
+                        if anomaly_payload:
+                            # sanitize
+                            santized_anomaly_payload = json.dumps(
+                                anomaly_payload
+                            ).encode("utf-8")
+                            # publish anomaly to Kafka dedicated ANOMALY_TOPIC, for AI Evals
+                            await producer.send_and_wait(
+                                ANOMALY_TOPIC, santized_anomaly_payload
+                            )
+                            logger.info(
+                                f"X [ ANOMALY EMITED ] Sent anomaly alert to {ANOMALY_TOPIC}"
+                            )
+
                     except Exception as err:
                         # Fixed variable scoping: producer is now safely accessible here
                         await send_to_dlq(producer, record.value, str(err))
@@ -164,7 +190,7 @@ async def start_consumer():
                     # Forces each record individually to isolate the single bad row
                     for rec in records_in_batch:
                         try:
-                            single_row = sanitize_and_parse(rec.value)
+                            single_row, _ = sanitize_and_parse(rec.value)
                             await execute_db_batch_with_retry(
                                 pool, [single_row], max_retries=1
                             )
@@ -181,10 +207,15 @@ async def start_consumer():
         logger.info("Shutdown signal received///")
     finally:
         logger.info("Cleaning up resources...")
+        _ = asyncio.create_task(rule_engine.listen_for_rule_updates()).cancel()
+        logger.info("Rule change listener ---> closed")
         await consumer.stop()
+        logger.info("Consumer worker ---> Stopped")
         await producer.stop()
+        logger.info("Producer worker ----> Stopped")
         await pool.close()
-        logger.info("Consumer worker cleanly shut down")
+        logger.info("Postgress DB pool ----> closed")
+        logger.info("Clean Shutdown process complete...")
 
 
 if __name__ == "__main__":

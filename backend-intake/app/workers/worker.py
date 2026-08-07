@@ -37,7 +37,9 @@ CONSUMER_GROUP = "sentinel-postgres-writers"
 ANOMALY_TOPIC = "telemetry-anomalies"
 
 
-async def send_to_dlq(producer: AIOKafkaProducer, raw_value: bytes, error_reason: str):
+async def send_to_dlq(
+    producer: AIOKafkaProducer, raw_value: bytes, error_reason: str, came_from: str
+):
     """Routes corrupted payloads to the Dead Letter Queue DLQ"""
     try:
         timestamp_dt = datetime.now(timezone.utc)
@@ -48,7 +50,7 @@ async def send_to_dlq(producer: AIOKafkaProducer, raw_value: bytes, error_reason
         }
         await producer.send_and_wait(DLQ_TOPIC, json.dumps(payload).encode("utf-8"))
         logger.warning(
-            f"[DLQ] Routed poison pill message to '{DLQ_TOPIC}', Reason: {error_reason}"
+            f"[DLQ] Routed poison pill message to '{DLQ_TOPIC}', Reason: {error_reason}. [DEBUG] came from '{came_from}'"
         )
     except Exception as e:
         logger.critical(f"[DLQ FAILURE] Failed to write to DLQ: {e}")
@@ -74,7 +76,18 @@ def sanitize_and_parse(record_bytes: bytes) -> tuple:
         metadata = {"raw_metadata": str(metadata)}
 
     timestamp_dt = datetime.fromisoformat(payload["timestamp"].replace("Z", "+00:00"))
-    return (
+
+    dict_payload = {
+        "id": log_id,
+        "tenant_id": tenant_id,
+        "event_source": event_source,
+        "event_type": event_type,
+        "actor_ip": actor_ip,
+        "metadata": metadata,
+        "timestamp": timestamp_dt,
+    }
+
+    db_row = (
         log_id,
         tenant_id,
         event_source,
@@ -83,6 +96,7 @@ def sanitize_and_parse(record_bytes: bytes) -> tuple:
         json.dumps(metadata),
         timestamp_dt,
     )
+    return (db_row, dict_payload)
 
 
 async def execute_db_batch_with_retry(
@@ -159,7 +173,7 @@ async def start_consumer():
                         if anomaly_payload:
                             # sanitize
                             santized_anomaly_payload = json.dumps(
-                                anomaly_payload
+                                anomaly_payload, default=str
                             ).encode("utf-8")
                             # publish anomaly to Kafka dedicated ANOMALY_TOPIC, for AI Evals
                             await producer.send_and_wait(
@@ -171,7 +185,12 @@ async def start_consumer():
 
                     except Exception as err:
                         # Fixed variable scoping: producer is now safely accessible here
-                        await send_to_dlq(producer, record.value, str(err))
+                        await send_to_dlq(
+                            producer,
+                            record.value,
+                            str(err),
+                            came_from="record in records: loop",
+                        )
                 if records:
                     offsets_to_commit[topic_partition] = records[-1].offset + 1
 
@@ -199,6 +218,7 @@ async def start_consumer():
                                 producer,
                                 rec.value,
                                 f"DB Type Casting Failure: {single_err}",
+                                came_from="rows_to_execute condition",
                             )
 
             if offsets_to_commit:

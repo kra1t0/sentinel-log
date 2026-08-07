@@ -46,6 +46,31 @@ services:
       redpanda:
         condition: service_started
 
+  ai-worker:
+    container_name: sentinellog_ai_worker
+    build: .
+    restart: always
+    command: python app/workers/ai_worker.py
+    volumes:
+      - ./backend-intake:/app
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS_INTERNAL=${KAFKA_BOOTSTRAP_SERVERS_INTERNAL}
+      - KAFKA_BOOTSTRAP_SERVERS_EXTERNAL=${KAFKA_BOOTSTRAP_SERVERS_EXTERNAL}
+      - POSTGRES_DSN=${POSTGRES_DSN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    networks:
+      - sentinel-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_started
+
   redpanda:
     image: docker.redpanda.com/redpandadata/redpanda:latest
     container_name: sentinel-broker-redpanda
@@ -102,3 +127,4 @@ networks:
 
 volumes:
   postgres_data:
+  redis_data:

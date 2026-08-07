@@ -60,7 +60,7 @@ class ThreatAnalyzerService:
                 config={
                     "system_instruction": SYSTEM_PROMPT,
                     "response_mime_type": "application/json",
-                    "response_schema": ThreatAnalysisReport.model_json_schema(),
+                    "response_schema": ThreatAnalysisReport,
                 },
             )
             report = ThreatAnalysisReport.model_validate_json(response.text)

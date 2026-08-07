@@ -167,8 +167,7 @@ class DynamicRuleEngine:
                 await self.redis_client.set(cooldown_key, "1", ex=cooldown_seconds)
 
                 logger.warning(
-                    f"[ANOMALY DETECTED] Rule '{rule['rule_name']}' breached by {entity_value}! \n",
-                    f"Count: {current_count}/{rule['max_events_allowed']} in {rule['time_window_seconds']}s",
+                    f"[ANOMALY DETECTED] Rule '{rule['rule_name']}' breached by {entity_value}!... {current_count}/{rule['max_events_allowed']} in {rule['time_window_seconds']}s"
                 )
                 return {
                     "anomaly_id": f"anom_{now_ms}",

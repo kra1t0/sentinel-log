@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS security_logs (
 
 -- Dynamic Rules Config Table
 CREATE TABLE IF NOT EXISTS tenant_rules (
-    rule_id UUID PRIMARY KEY DEFAULT get_random_uuid(),
+    rule_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id VARCHAR(100) NOT NULL,
     rule_name VARCHAR(100) NOT NULL,
     event_type VARCHAR(100) NOT NULL,
@@ -34,12 +34,36 @@ CREATE TABLE IF NOT EXISTS tenant_rules (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS security_incidents(
+    incident_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    anomaly_id VARCHAR(100) NOT NULL,
+    tenant_id VARCHAR(100) NOT NULL,
+    rule_id UUID,
+    rule_name VARCHAR(100) NOT NULL,
+    severity VARCHAR(100) NOT NULL,
+    offending_entity VARCHAR(255) NOT NULL,
+
+    -- FOR Gemini --
+    threat_title VARCHAR(255),
+    incident_overview TEXT,
+    potential_impact TEXT,
+    risk_level VARCHAR(20),
+    confidence_score FLOAT,
+    mitigation_plan JSONB,
+
+    raw_anomaly_payload JSONB,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+
+);
+
 --Optimze queries with indexing..
 CREATE INDEX IF NOT EXISTS idx_logs_tenant_timestamp ON security_logs(tenant_id, timestamp DESC);
 
 CREATE INDEX IF NOT EXISTS idx_logs_actor_ip_timestamp ON security_logs(actor_ip, timestamp DESC);
 
 CREATE INDEX IF NOT EXISTS idx_logs_event_type ON security_logs(event_type);
+
+CREATE INDEX IF NOT EXISTS idx_incident_tenant_created ON security_incidents(tenant_id, created_at DESC);
 
 
 -- RLS Row level security

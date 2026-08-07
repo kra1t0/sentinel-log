@@ -24,7 +24,7 @@ class MitigationStep(BaseModel):
 
 
 class ThreatAnalysisReport(BaseModel):
-    summery_title: str = Field(
+    threat_title: str = Field(
         description="A brief title summerizing the detected anomaly"
     )
     incident_overview: str = Field(
@@ -33,8 +33,8 @@ class ThreatAnalysisReport(BaseModel):
     potential_impact: str = Field(
         description="What could happen if this traffic pattern is left unaddressed (ex: Account takeovers, denial of service etc...)"
     )
-    rist_level: str = Field(description="Assessed risk level")
-    confidence_score: str = Field(description="Confidence score between 0.0 - 1.0")
-    mitigation_steps: str = Field(
+    rist_level: RiskLevel = Field(description="Assessed Risk Level")
+    confidence_score: float = Field(description="Confidence score between 0.0 - 1.0")
+    mitigation_plan: list[MitigationStep] = Field(
         description="Sequential step by step instructions for SOC team to investigate and and resolve the issue"
     )
